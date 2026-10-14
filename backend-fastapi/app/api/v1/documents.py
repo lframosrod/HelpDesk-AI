@@ -9,13 +9,27 @@ from app.models.helpdesk import Document, DocumentChunk, Article, Category, DocS
 from app.schemas.helpdesk import DocumentResponse, ArticleResponse
 from app.services.pdf_processor import extract_text_from_pdf, chunk_text
 from app.services.ai_service import get_embedding, generate_articles_from_text
+from app.schemas.helpdesk import (
+    DocumentResponse,
+    ArticleResponse,
+    SearchQuery,
+    RAGSearchResponse,
+    ChunkSearchResult,
+)
+from app.services.ai_service import (
+    get_embedding,
+    generate_articles_from_text,
+    generate_rag_answer,
+)
 
 router = APIRouter(prefix="/documents", tags=["Documents & RAG"])
 
+
 def slugify(text: str) -> str:
     text = text.lower().strip()
-    text = re.sub(r'[^\w\s-]', '', text)
-    return re.sub(r'[-\s]+', '-', text)
+    text = re.sub(r"[^\w\s-]", "", text)
+    return re.sub(r"[-\s]+", "-", text)
+
 
 async def process_pdf_background(document_id: int, file_bytes: bytes, filename: str):
     """Tarea en segundo plano: Extrae texto, vectoriza en pgvector y redacta artículos."""
@@ -32,18 +46,20 @@ async def process_pdf_background(document_id: int, file_bytes: bytes, filename: 
             # 2. Generar vectores y guardarlos en document_chunks
             for chunk_str in chunks:
                 vector = await get_embedding(chunk_str)
-                db.add(DocumentChunk(
-                    document_id=doc.id,
-                    content=chunk_str,
-                    embedding=vector
-                ))
+                db.add(
+                    DocumentChunk(
+                        document_id=doc.id, content=chunk_str, embedding=vector
+                    )
+                )
 
             # 3. Generar artículos SEO con IA
             analysis = await generate_articles_from_text(raw_text, filename)
 
             for gen_art in analysis.articles:
                 cat_slug = slugify(gen_art.category_name)
-                res = await db.execute(select(Category).where(Category.slug == cat_slug))
+                res = await db.execute(
+                    select(Category).where(Category.slug == cat_slug)
+                )
                 category = res.scalar_one_or_none()
 
                 if not category:
@@ -56,15 +72,17 @@ async def process_pdf_background(document_id: int, file_bytes: bytes, filename: 
                 for faq in gen_art.faqs:
                     faq_md += f"\n### {faq.question}\n{faq.answer}\n"
 
-                db.add(Article(
-                    title=gen_art.title,
-                    slug=f"{slugify(gen_art.slug)}-{doc.id}",
-                    summary_seo=gen_art.summary_seo[:300],
-                    content_markdown=gen_art.content_markdown + faq_md,
-                    is_published=True,
-                    category_id=category.id,
-                    source_document_id=doc.id
-                ))
+                db.add(
+                    Article(
+                        title=gen_art.title,
+                        slug=f"{slugify(gen_art.slug)}-{doc.id}",
+                        summary_seo=gen_art.summary_seo[:300],
+                        content_markdown=gen_art.content_markdown + faq_md,
+                        is_published=True,
+                        category_id=category.id,
+                        source_document_id=doc.id,
+                    )
+                )
 
             doc.status = DocStatus.COMPLETED
             await db.commit()
@@ -77,11 +95,12 @@ async def process_pdf_background(document_id: int, file_bytes: bytes, filename: 
                 await db.commit()
             print(f"Error procesando PDF {document_id}: {e}")
 
+
 @router.post("/upload", response_model=DocumentResponse, status_code=202)
 async def upload_document(
     background_tasks: BackgroundTasks,
     file: UploadFile = File(...),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
     if not file.filename.lower().endswith(".pdf"):
         raise HTTPException(status_code=400, detail="Solo se permiten archivos PDF.")
@@ -94,17 +113,60 @@ async def upload_document(
     await db.refresh(new_doc)
 
     # Dispara el procesamiento pesado sin bloquear al usuario
-    background_tasks.add_task(process_pdf_background, new_doc.id, file_bytes, file.filename)
+    background_tasks.add_task(
+        process_pdf_background, new_doc.id, file_bytes, file.filename
+    )
     return new_doc
+
 
 @router.get("/", response_model=list[DocumentResponse])
 async def list_documents(db: AsyncSession = Depends(get_db)):
     result = await db.execute(select(Document).order_by(Document.uploaded_at.desc()))
     return result.scalars().all()
 
+
 @router.get("/articles", response_model=list[ArticleResponse])
 async def list_articles(db: AsyncSession = Depends(get_db)):
     result = await db.execute(
-        select(Article).options(selectinload(Article.category)).order_by(Article.created_at.desc())
+        select(Article)
+        .options(selectinload(Article.category))
+        .order_by(Article.created_at.desc())
     )
     return result.scalars().all()
+
+
+@router.post("/search", response_model=RAGSearchResponse)
+async def semantic_search(payload: SearchQuery, db: AsyncSession = Depends(get_db)):
+    # Convertir la pregunta del usuario en un vector de 1536 dimensiones
+    query_vector = await get_embedding(payload.query)
+
+    # Calcular distancia coseno en PostgreSQL usando pgvector
+    distance_col = DocumentChunk.embedding.cosine_distance(query_vector).label(
+        "distance"
+    )
+    stmt = (
+        select(DocumentChunk, distance_col)
+        .order_by(distance_col.asc())
+        .limit(payload.limit)
+    )
+    result = await db.execute(stmt)
+    rows = result.all()
+
+    sources = []
+    context_texts = []
+    for chunk, distance in rows:
+        similarity = round(1 - float(distance), 4)
+        sources.append(
+            ChunkSearchResult(
+                chunk_id=chunk.id,
+                document_id=chunk.document_id,
+                content=chunk.content,
+                similarity_score=similarity,
+            )
+        )
+        context_texts.append(chunk.content)
+
+    # Generar respuesta asistida por IA con el contexto recuperado
+    ai_answer = await generate_rag_answer(payload.query, context_texts)
+
+    return RAGSearchResponse(query=payload.query, ai_answer=ai_answer, sources=sources)

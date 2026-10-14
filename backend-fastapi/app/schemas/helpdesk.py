@@ -85,3 +85,24 @@ class DocumentAnalysisResult(BaseModel):
     articles: List[GeneratedArticle] = Field(
         description="Lista de artículos extraídos lógicamente del documento."
     )
+
+
+# --- BÚSQUEDA SEMÁNTICA (RAG) ---
+class SearchQuery(BaseModel):
+    query: str = Field(
+        ..., min_length=3, description="Pregunta o término de búsqueda del usuario"
+    )
+    limit: int = Field(default=3, ge=1, le=10)
+
+
+class ChunkSearchResult(BaseModel):
+    chunk_id: int
+    document_id: int
+    content: str
+    similarity_score: float
+
+
+class RAGSearchResponse(BaseModel):
+    query: str
+    ai_answer: str
+    sources: List[ChunkSearchResult]
