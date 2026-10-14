@@ -85,6 +85,15 @@ services:
     networks:
       - helpdesk_net
 
+  # Ollama
+  ollama:
+    image: ollama/ollama:latest
+    container_name: helpdesk_ollama
+    ports:
+      - "11434:11434"
+    volumes:
+      - ollama_data:/root/.ollama
+
   # Reverse Proxy (Nginx)
   nginx:
     image: docker.io/library/nginx:alpine
@@ -103,6 +112,7 @@ services:
 volumes:
   postgres_data:
   pgadmin_data:
+  ollama_data:
 
 networks:
   helpdesk_net:
