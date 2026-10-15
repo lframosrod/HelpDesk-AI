@@ -3,11 +3,7 @@ from openai import AsyncOpenAI
 from app.schemas.helpdesk import DocumentAnalysisResult, GeneratedArticle, GeneratedFAQ
 
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-client = (
-    AsyncOpenAI(api_key=OPENAI_API_KEY)
-    if OPENAI_API_KEY and not OPENAI_API_KEY.startswith("sk-proj-xxxx")
-    else None
-)
+client = AsyncOpenAI(base_url="http://ollama:11434/v1", api_key="local-mode")
 
 
 async def get_embedding(text: str) -> list[float]:
