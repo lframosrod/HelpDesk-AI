@@ -53,7 +53,7 @@ async def process_pdf_background(document_id: int, file_bytes: bytes, filename: 
                 )
 
             # 3. Generar artículos SEO con IA
-            analysis = await generate_articles_from_text(raw_text, filename)
+            analysis = await generate_articles_from_text(raw_text[:4000], filename)
 
             for gen_art in analysis.articles:
                 cat_slug = slugify(gen_art.category_name)
