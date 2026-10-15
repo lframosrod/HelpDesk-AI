@@ -3,7 +3,7 @@ from openai import AsyncOpenAI
 from app.schemas.helpdesk import DocumentAnalysisResult, GeneratedArticle, GeneratedFAQ
 
 # Cliente apuntando directamente a la red interna de Podman donde vive Ollama
-client = AsyncOpenAI(base_url="http://helpdesk_ollama:11434/v1", api_key="local-mode")
+client = AsyncOpenAI(base_url="http://ollama:11434/v1", api_key="local-mode")
 
 
 async def get_embedding(text: str) -> list[float]:
