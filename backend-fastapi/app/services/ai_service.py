@@ -17,7 +17,7 @@ async def generate_articles_from_text(
 ) -> DocumentAnalysisResult:
     """Analiza el manual técnico y devuelve artículos estructurados orientados a SEO."""
     completion = await client.beta.chat.completions.parse(
-        model="qwen2.5:1.5b",
+        model="qwen2.5:0.5b",
         messages=[
             {
                 "role": "system",
@@ -42,7 +42,7 @@ async def generate_rag_answer(query: str, context_chunks: list[str]) -> str:
     context_str = "\n\n---\n\n".join(context_chunks)
 
     response = await client.chat.completions.create(
-        model="qwen2.5:1.5b",
+        model="qwen2.5:0.5b",
         messages=[
             {
                 "role": "system",
