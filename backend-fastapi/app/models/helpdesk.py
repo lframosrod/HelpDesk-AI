@@ -51,8 +51,8 @@ class DocumentChunk(Base):
         ForeignKey("documents.id", ondelete="CASCADE")
     )
     content: Mapped[str] = mapped_column(Text)
-    # Vector de 1536 dimensiones (Estándar de OpenAI Llama 3 / text-embedding-3)
-    embedding: Mapped[Vector] = mapped_column(Vector(1536))
+    # Vector de 768 dimensiones (Estándar de nomic-embed-text en Ollama)
+    embedding: Mapped[Vector] = mapped_column(Vector(768))
 
     # Relaciones
     document: Mapped["Document"] = relationship(back_populates="chunks")
