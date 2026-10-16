@@ -2,23 +2,13 @@ import os
 from openai import AsyncOpenAI
 from app.schemas.helpdesk import DocumentAnalysisResult, GeneratedArticle, GeneratedFAQ
 
-OPENAI_API_KEY = os.getenv("OPENAI_API_KEY", "")
-client = (
-    AsyncOpenAI(api_key=OPENAI_API_KEY)
-    if OPENAI_API_KEY and not OPENAI_API_KEY.startswith("sk-proj-xxxx")
-    else None
-)
+# Cliente apuntando directamente a la red interna de Podman donde vive Ollama
+client = AsyncOpenAI(base_url="http://ollama:11434/v1", api_key="local-mode")
 
 
 async def get_embedding(text: str) -> list[float]:
-    """Genera un vector de 1536 dimensiones para el fragmento de texto."""
-    if not client:
-        # Vector determinista de prueba (1536 dimensiones) si no hay API Key configurada
-        return [0.015] * 1536
-
-    response = await client.embeddings.create(
-        input=text, model="text-embedding-3-small"
-    )
+    """Genera un vector de 768 dimensiones usando nomic-embed-text en Ollama."""
+    response = await client.embeddings.create(input=text, model="nomic-embed-text")
     return response.data[0].embedding
 
 
@@ -26,33 +16,8 @@ async def generate_articles_from_text(
     text: str, filename: str
 ) -> DocumentAnalysisResult:
     """Analiza el manual técnico y devuelve artículos estructurados orientados a SEO."""
-    if not client:
-        # Respuesta estructurada de simulación para pruebas locales sin costo
-        base_slug = filename.lower().replace(".pdf", "").replace(" ", "-")
-        return DocumentAnalysisResult(
-            articles=[
-                GeneratedArticle(
-                    title=f"Guía de configuración y uso: {filename}",
-                    slug=f"guia-configuracion-{base_slug}",
-                    summary_seo=f"Aprende paso a paso cómo configurar y resolver problemas comunes basados en {filename}.",
-                    content_markdown=(
-                        f"## Resumen del Manual\n\nEste artículo fue autogenerado a partir de **{filename}**.\n\n"
-                        f"### Fragmento extraído\n> {text[:350]}...\n\n"
-                        f"### Pasos recomendados\n1. Verificar los requisitos del sistema.\n2. Seguir el protocolo de instalación estándar."
-                    ),
-                    category_name="Guías Técnicas",
-                    faqs=[
-                        GeneratedFAQ(
-                            question="¿Qué hacer si el sistema muestra error de conexión?",
-                            answer="Verifique los parámetros de red y reinicie el servicio principal según la página 1 del manual.",
-                        )
-                    ],
-                )
-            ]
-        )
-
     completion = await client.beta.chat.completions.parse(
-        model="gpt-4o-mini",
+        model="qwen2.5:0.5b",
         messages=[
             {
                 "role": "system",
@@ -76,14 +41,8 @@ async def generate_rag_answer(query: str, context_chunks: list[str]) -> str:
 
     context_str = "\n\n---\n\n".join(context_chunks)
 
-    if not client:
-        return (
-            f"**[Respuesta RAG Simulada]** Basado en la búsqueda vectorial para *'{query}'*, "
-            f"el manual indica lo siguiente:\n\n> {context_chunks[0][:300]}..."
-        )
-
     response = await client.chat.completions.create(
-        model="gpt-4o-mini",
+        model="qwen2.5:0.5b",
         messages=[
             {
                 "role": "system",
