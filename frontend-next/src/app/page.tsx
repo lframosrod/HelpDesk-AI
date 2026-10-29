@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { searchRAG, uploadDocument } from "@/lib/api";
+import { Logo } from "@/components/Logo";
 
 export default function HelpDeskDashboard() {
   const [query, setQuery] = useState("");
@@ -49,11 +50,15 @@ export default function HelpDeskDashboard() {
       <div className="max-w-5xl mx-auto space-y-8">
         {/* Header & Upload */}
         <div className="flex justify-between items-center bg-white p-6 rounded-xl shadow-sm border border-gray-100">
-          <div>
-            <h1 className="text-2xl font-bold text-blue-900">HelpDesk AI</h1>
-            <p className="text-sm text-gray-500">
-              Base de conocimiento impulsada por RAG
-            </p>
+          <div className="flex items-center gap-4">
+            {/* Logo insertado aquí */}
+            <Logo className="w-12 h-12" />
+            <div>
+              <h1 className="text-2xl font-bold text-blue-900">HelpDesk AI</h1>
+              <p className="text-sm text-gray-500">
+                Base de conocimiento impulsada por RAG
+              </p>
+            </div>
           </div>
           <div>
             <label className="bg-blue-600 text-white px-4 py-2 rounded-lg cursor-pointer hover:bg-blue-700 transition">
