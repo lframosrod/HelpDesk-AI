@@ -72,7 +72,7 @@ services:
       # URL interna para cuando Next.js hace Server-Side Rendering (SSR) dentro de Podman
       INTERNAL_API_URL: http://backend:8000/api/v1
       # URL pública para peticiones desde el navegador del cliente (pasa por Nginx)
-      NEXT_PUBLIC_API_URL: http://localhost/api/v1
+      NEXT_PUBLIC_API_URL: http://localhost:8080/api/v1
       WATCHPACK_POLLING: "true" # Necesario en Windows para detectar cambios en vivo
     volumes:
       - ./frontend-next:/app:Z
